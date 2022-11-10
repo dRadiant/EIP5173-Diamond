@@ -56,6 +56,7 @@ abstract contract nFR is InFR, SolidStateERC721 {
         uint256 tokenId,
         uint256 soldPrice
     ) internal virtual {
+        require(from != to, "transfer to self");
         ERC721BaseInternal._transfer(from, to, tokenId);
         require(_checkOnERC721Received(from, to, tokenId, ""), "ERC721: transfer to non ERC721Receiver implementer");
         nFRStorage.Layout storage l = nFRStorage.layout();
@@ -103,6 +104,7 @@ abstract contract nFR is InFR, SolidStateERC721 {
         address to,
         uint256 tokenId
     ) internal virtual override {
+        require(from != to, "transfer to self");
         super._transfer(from, to, tokenId);
         nFRStorage.Layout storage l = nFRStorage.layout();
 
