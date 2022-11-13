@@ -1,7 +1,12 @@
-const { expect } = require("chai");
-const { ethers, waffle } = require("hardhat");
+import { NFRFacet } from '../typechain-types/contracts';
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 
-const { getSelectors, FacetCutAction } = require('./libraries/diamond.js');
+import { expect } from "chai";
+import { ethers } from "hardhat";
+
+import { Selectors, FacetCutAction } from './libraries/diamond';
+
+import { div, mul } from "@prb/math";
 
 describe("nFR implementation contract", function() {
 
@@ -18,25 +23,25 @@ describe("nFR implementation contract", function() {
 	const tokenId = 1;
 
 	let nFRFactory;
-	let nFR;
-	let owner;
-	let addrs;
+	let nFR: NFRFacet;
+	let owner: SignerWithAddress;
+	let addrs: SignerWithAddress[];
 
 	beforeEach(async function() {
 		nFRFactory = await ethers.getContractFactory("nFRDiamond");
 		[owner, ...addrs] = await ethers.getSigners();
 
-		nFR = await nFRFactory.deploy("unTrading Shared Contract", "unNFT", "");
-		await nFR.deployed();
+		const nfr = await nFRFactory.deploy("unTrading Shared Contract", "unNFT", "");
+		await nfr.deployed();
 
 		const nFRFacetFactory = await ethers.getContractFactory("nFRFacet");
 		const nFRFacet = await nFRFacetFactory.deploy();
 		await nFRFacet.deployed();
 
-		const cut = [{ target: nFRFacet.address, action: FacetCutAction.Add, selectors: getSelectors(nFRFacet).remove(['supportsInterface(bytes4)']) }];
-		await nFR.diamondCut(cut, ethers.constants.AddressZero, "0x");
+		const cut = [{ target: nFRFacet.address, action: FacetCutAction.Add, selectors: new Selectors(nFRFacet).remove(['supportsInterface(bytes4)']) }];
+		await nfr.diamondCut(cut, ethers.constants.AddressZero, "0x");
 
-		nFR = await ethers.getContractAt('nFRFacet', nFR.address);
+		nFR = await ethers.getContractAt('nFRFacet', nfr.address);
 
 		await nFR.mintNFT(owner.address, numGenerations, percentOfProfit, successiveRatio, "");
 	});
@@ -48,7 +53,7 @@ describe("nFR implementation contract", function() {
 
 		it("Should set and retrieve the correct FR info", async function() {
 			let expectedArray = [numGenerations, percentOfProfit, successiveRatio, ethers.BigNumber.from("0"), ethers.BigNumber.from("1"), [owner.address]]; // ..., lastSoldPrice, ownerAmount, addressesInFR
-			expect(await nFR.retrieveFRInfo(tokenId)).deep.to.equal(expectedArray);
+			expect(await nFR.retrieveFRInfo(tokenId)).to.deep.equal(expectedArray);
 		});
 
 		it("Should return the proper allotted FR", async function() {
@@ -56,7 +61,7 @@ describe("nFR implementation contract", function() {
 		});
 
 		it("Should return the proper list info", async function() {
-			expect(await nFR.retrieveListInfo(tokenId)).deep.to.equal([ ethers.BigNumber.from("0"), ethers.constants.AddressZero, false ]);
+			expect(await nFR.retrieveListInfo(tokenId)).to.deep.equal([ ethers.BigNumber.from("0"), ethers.constants.AddressZero, false ]);
 		});
 
 	});
@@ -73,37 +78,37 @@ describe("nFR implementation contract", function() {
 		});
 
 		it("Should treat ERC721 transfer as an unprofitable sale and update data accordingly", async function() {
-			await nFR["transferFrom(address,address,uint256)"](owner.address, addrs[0].address, tokenId);
+			await nFR.transferFrom(owner.address, addrs[0].address, tokenId);
 
 			let expectedArray = [numGenerations, percentOfProfit, successiveRatio, ethers.BigNumber.from("0"), ethers.BigNumber.from("2"), [owner.address, addrs[0].address]];
-			expect(await nFR.retrieveFRInfo(tokenId)).deep.to.equal(expectedArray);
+			expect(await nFR.retrieveFRInfo(tokenId)).to.deep.equal(expectedArray);
 		});
 
 		it("Should shift generations properly even if there have only been ERC721 transfers", async function() {
-			await nFR["transferFrom(address,address,uint256)"](owner.address, addrs[0].address, tokenId);
+			await nFR.transferFrom(owner.address, addrs[0].address, tokenId);
 
 			for (let transfers = 0; transfers < 9; transfers++) { // This results in 11 total owners, minter, transfer, 9 more transfers.
 				let signer = nFR.connect(addrs[transfers]);
 
-				await signer["transferFrom(address,address,uint256)"](addrs[transfers].address, addrs[transfers + 1].address, tokenId);
+				await signer.transferFrom(addrs[transfers].address, addrs[transfers + 1].address, tokenId);
 			}
 
-			let expectedArray = [numGenerations, percentOfProfit, successiveRatio, ethers.BigNumber.from("0"), ethers.BigNumber.from("11"), []];
+			let expectedArray: any = [numGenerations, percentOfProfit, successiveRatio, ethers.BigNumber.from("0"), ethers.BigNumber.from("11"), []];
 
 			for (let a = 0; a < 10; a++) {
 				expectedArray[5].push(addrs[a].address);
 			}
 
-			expect(await nFR.retrieveFRInfo(tokenId)).deep.to.equal(expectedArray);
+			expect(await nFR.retrieveFRInfo(tokenId)).to.deep.equal(expectedArray);
 
-			expect(await waffle.provider.getBalance(nFR.address)).to.equal(ethers.BigNumber.from("0"));
+			expect(await ethers.provider.getBalance(nFR.address)).to.equal(ethers.BigNumber.from("0"));
 		});
 
 		it("Should delete FR info upon burning of NFT", async function() {
 			await nFR.burnNFT(tokenId);
 
 			let expectedArray = [0, ethers.BigNumber.from("0"), ethers.BigNumber.from("0"), ethers.BigNumber.from("0"), ethers.BigNumber.from("0"), []];
-			expect(await nFR.retrieveFRInfo(tokenId)).deep.to.equal(expectedArray);
+			expect(await nFR.retrieveFRInfo(tokenId)).to.deep.equal(expectedArray);
 		});
 	});
 
@@ -137,22 +142,34 @@ describe("nFR implementation contract", function() {
 			await expect(signer.buy(tokenId, { value: ethers.utils.parseUnits("0.5") })).to.be.revertedWith("salePrice and msg.value mismatch");
 		});
 
+		it("Should revert if buyer is already in the FR sliding window", async () => {
+			await nFR.list(tokenId, baseSale);
+
+			let buyer = await nFR.connect(addrs[0]);
+
+			await buyer.buy(tokenId, { value: baseSale });
+
+			await buyer.list(tokenId, baseSale.add(ethers.utils.parseUnits(saleIncrementor)));
+
+			await expect(nFR.buy(tokenId, { value: baseSale.add(ethers.utils.parseUnits(saleIncrementor)) })).to.revertedWith("Already in the FR sliding window");
+		});
+
 		it("Should list properly", async function() {
 			await nFR.list(tokenId, ethers.utils.parseUnits("1"));
 
-			expect(await nFR.retrieveListInfo(tokenId)).deep.to.equal([ ethers.utils.parseUnits("1"), owner.address, true ]);
+			expect(await nFR.retrieveListInfo(tokenId)).to.deep.equal([ ethers.utils.parseUnits("1"), owner.address, true ]);
 		});
 
 		it("Should unlist properly", async function() {
 			await nFR.unlist(tokenId);
 
-			expect(await nFR.retrieveListInfo(tokenId)).deep.to.equal([ ethers.BigNumber.from("0"), ethers.constants.AddressZero, false ]);
+			expect(await nFR.retrieveListInfo(tokenId)).to.deep.equal([ ethers.BigNumber.from("0"), ethers.constants.AddressZero, false ]);
 		});
 
 		it("Should treat a profitable transaction properly", async function() {
 			let signer = nFR.connect(addrs[0]);
 
-			let balanceBefore = await waffle.provider.getBalance(addrs[0].address);
+			let balanceBefore = await ethers.provider.getBalance(addrs[0].address);
 
 			let expectedBalance = balanceBefore.sub(ethers.utils.parseUnits("0.16"));
 
@@ -162,9 +179,9 @@ describe("nFR implementation contract", function() {
 				value: ethers.utils.parseUnits("1")
 			});
 
-			expect(await waffle.provider.getBalance(addrs[0].address)).to.be.below(expectedBalance);
+			expect(await ethers.provider.getBalance(addrs[0].address)).to.be.below(expectedBalance);
 			expect(await nFR.retrieveAllottedFR(owner.address)).to.equal(ethers.utils.parseUnits("0.16"));
-			expect(await nFR.retrieveFRInfo(tokenId)).deep.to.equal([ numGenerations, percentOfProfit, successiveRatio, ethers.utils.parseUnits("1"), ethers.BigNumber.from("2"), [owner.address, addrs[0].address] ]);
+			expect(await nFR.retrieveFRInfo(tokenId)).to.deep.equal([ numGenerations, percentOfProfit, successiveRatio, ethers.utils.parseUnits("1"), ethers.BigNumber.from("2"), [owner.address, addrs[0].address] ]);
 		});
 
 		it("Should treat an unprofitable transaction properly", async function() {
@@ -178,15 +195,15 @@ describe("nFR implementation contract", function() {
 
 			let secondSigner = await nFR.connect(addrs[1]);
 
-			let balanceBefore = await waffle.provider.getBalance(addrs[0].address);
+			let balanceBefore = await ethers.provider.getBalance(addrs[0].address);
 
 			await signer.list(tokenId, ethers.utils.parseUnits("0.5"));
 
 			await secondSigner.buy(tokenId, { value: ethers.utils.parseUnits("0.5") });
 
-			expect(await waffle.provider.getBalance(addrs[0].address)).to.be.above(balanceBefore.sub(ethers.utils.parseUnits("0.001")));
+			expect(await ethers.provider.getBalance(addrs[0].address)).to.be.above(balanceBefore.sub(ethers.utils.parseUnits("0.001")));
 			expect(await nFR.retrieveAllottedFR(addrs[0].address)).to.equal(ethers.utils.parseUnits("0"));
-			expect(await nFR.retrieveFRInfo(tokenId)).deep.to.equal([ numGenerations, percentOfProfit, successiveRatio, ethers.utils.parseUnits("0.5"), ethers.BigNumber.from("3"), [owner.address, addrs[0].address, addrs[1].address] ]);
+			expect(await nFR.retrieveFRInfo(tokenId)).to.deep.equal([ numGenerations, percentOfProfit, successiveRatio, ethers.utils.parseUnits("0.5"), ethers.BigNumber.from("3"), [owner.address, addrs[0].address, addrs[1].address] ]);
 		});
 
 		it("Should reset list info after sale", async function() {
@@ -198,7 +215,7 @@ describe("nFR implementation contract", function() {
 				value: ethers.utils.parseUnits("1")
 			});
 
-			expect(await nFR.retrieveListInfo(tokenId)).deep.to.equal([ ethers.BigNumber.from("0"), ethers.constants.AddressZero, false ]);
+			expect(await nFR.retrieveListInfo(tokenId)).to.deep.equal([ ethers.BigNumber.from("0"), ethers.constants.AddressZero, false ]);
 		});
 
 		it("Should fail if improper data passed to default FR info", async function() {
@@ -225,15 +242,15 @@ describe("nFR implementation contract", function() {
 				await secondSigner.buy(tokenId, { value: salePrice });
 			}
 
-			let expectedArray = [numGenerations, percentOfProfit, successiveRatio, ethers.utils.parseUnits("5.5"), ethers.BigNumber.from("11"), []];
+			let expectedArray: any = [numGenerations, percentOfProfit, successiveRatio, ethers.utils.parseUnits("5.5"), ethers.BigNumber.from("11"), []];
 
 			for (let a = 0; a < 10; a++) {
 				expectedArray[5].push(addrs[a].address);
 			}
 
-			expect(await nFR.retrieveFRInfo(tokenId)).deep.to.equal(expectedArray);
+			expect(await nFR.retrieveFRInfo(tokenId)).to.deep.equal(expectedArray);
 
-			expect(await waffle.provider.getBalance(nFR.address)).to.be.above(ethers.utils.parseUnits("0.879")); // (0.16) + (9 * 0.5 * 0.16) - Taking fixed-point dust into account
+			expect(await ethers.provider.getBalance(nFR.address)).to.be.above(ethers.utils.parseUnits("0.879")); // (0.16) + (9 * 0.5 * 0.16) - Taking fixed-point dust into account
 
 			let totalOwners = [owner.address, ...expectedArray[5]];
 
@@ -264,15 +281,15 @@ describe("nFR implementation contract", function() {
 				await signer.buy(tokenId, { value: ethers.utils.parseUnits("1") });
 
 				expect(await nFR.retrieveAllottedFR(owner.address)).to.equal(ethers.utils.parseUnits("0.16"));
-				expect(await waffle.provider.getBalance(nFR.address)).to.equal(ethers.utils.parseUnits("0.16"));
+				expect(await ethers.provider.getBalance(nFR.address)).to.equal(ethers.utils.parseUnits("0.16"));
 
-				let expectedBalance = (await waffle.provider.getBalance(owner.address)).add(ethers.utils.parseUnits("0.1599"));
+				let expectedBalance = (await ethers.provider.getBalance(owner.address)).add(ethers.utils.parseUnits("0.1599"));
 
 				await nFR.releaseFR(owner.address);
 
 				expect(await nFR.retrieveAllottedFR(owner.address)).to.equal(ethers.utils.parseUnits("0"));
-				expect(await waffle.provider.getBalance(nFR.address)).to.equal(ethers.utils.parseUnits("0"));
-				expect(await waffle.provider.getBalance(owner.address)).to.be.above(expectedBalance);
+				expect(await ethers.provider.getBalance(nFR.address)).to.equal(ethers.utils.parseUnits("0"));
+				expect(await ethers.provider.getBalance(owner.address)).to.be.above(expectedBalance);
 			});
 
 			it("Should revert if no FR allotted", async function() {
