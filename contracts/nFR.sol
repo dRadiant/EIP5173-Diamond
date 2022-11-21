@@ -61,20 +61,25 @@ abstract contract nFR is InFR, SolidStateERC721 {
         require(_checkOnERC721Received(from, to, tokenId, ""), "ERC721: transfer to non ERC721Receiver implementer");
         nFRStorage.Layout storage l = nFRStorage.layout();
 
+        uint256 allocatedFR = 0;
+
         if (soldPrice <= l._tokenFRInfo[tokenId].lastSoldPrice) { // NFT sold for a loss, meaning no FR distribution, but we still shift generations, and update price. We return ALL of the received ETH to the msg.sender as no FR chunk was needed.
             l._tokenFRInfo[tokenId].lastSoldPrice = soldPrice;
             l._tokenFRInfo[tokenId].ownerAmount++;
             _shiftGenerations(to, tokenId);
-            (bool sent, ) = payable(l._tokenListInfo[tokenId].lister).call{value: soldPrice}("");
-            require(sent, "ERC5173: Failed to send msg.value to lister");
         } else {
-            _distributeFR(tokenId, soldPrice);
+            allocatedFR = _distributeFR(tokenId, soldPrice);
             l._tokenFRInfo[tokenId].lastSoldPrice = soldPrice;
             l._tokenFRInfo[tokenId].ownerAmount++;
             _shiftGenerations(to, tokenId);
         }
 
+        address lister = l._tokenListInfo[tokenId].lister;
+
         delete l._tokenListInfo[tokenId];
+
+        (bool sent, ) = payable(lister).call{value: soldPrice - allocatedFR}("");
+        require(sent, "ERC5173: Failed to send ETH to lister");
     }
 
     function list(uint256 tokenId, uint256 salePrice) public virtual override {
@@ -82,6 +87,8 @@ abstract contract nFR is InFR, SolidStateERC721 {
         nFRStorage.Layout storage l = nFRStorage.layout();
 
         l._tokenListInfo[tokenId] = nFRStorage.ListInfo(salePrice, _msgSender(), true);
+
+        emit Listed(tokenId, salePrice);
     }
 
     function unlist(uint256 tokenId) public virtual override {
@@ -89,6 +96,8 @@ abstract contract nFR is InFR, SolidStateERC721 {
         nFRStorage.Layout storage l = nFRStorage.layout();
 
         delete l._tokenListInfo[tokenId];
+
+        emit Unlisted(tokenId);
     }
 
     function buy(uint256 tokenId) public payable virtual override {
@@ -101,6 +110,8 @@ abstract contract nFR is InFR, SolidStateERC721 {
         }
 
         _transferFrom(l._tokenListInfo[tokenId].lister, _msgSender(), tokenId, l._tokenListInfo[tokenId].salePrice);
+
+        emit Bought(tokenId, salePrice);
     }
 
     function _transfer(
@@ -111,6 +122,10 @@ abstract contract nFR is InFR, SolidStateERC721 {
         require(from != to, "transfer to self");
         super._transfer(from, to, tokenId);
         nFRStorage.Layout storage l = nFRStorage.layout();
+
+        for (uint i = 0; i < l._addressesInFR[tokenId].length; i++) {
+            require(l._addressesInFR[tokenId][i] != to, "Already in the FR sliding window");
+        }
 
         if (l._tokenListInfo[tokenId].isListed == true) {
             delete l._tokenListInfo[tokenId];
@@ -161,23 +176,23 @@ abstract contract nFR is InFR, SolidStateERC721 {
         l._addressesInFR[tokenId].push(to);
     }
 
-    function _distributeFR(uint256 tokenId, uint256 soldPrice) internal virtual {
+    function _distributeFR(uint256 tokenId, uint256 soldPrice) internal virtual returns(uint256 allocatedFR) {
         nFRStorage.Layout storage l = nFRStorage.layout();
+
+        address[] memory eligibleAddresses = l._addressesInFR[tokenId];
+        assembly { mstore(eligibleAddresses, sub(mload(eligibleAddresses), 1)) } // This is functionally equivalent to .pop() except for a memory array. Remove last person in FR array as the last person doesn't pay themselves. This won't underflow because someone is always in the FR array. Early on that'll be the minter who is added at mint time.
+
+        if (eligibleAddresses.length == 0) 
+            return 0;
+
         uint256 profit = soldPrice - l._tokenFRInfo[tokenId].lastSoldPrice;
-        uint256[] memory FR = _calculateFR(profit, l._tokenFRInfo[tokenId].percentOfProfit, l._tokenFRInfo[tokenId].successiveRatio, l._tokenFRInfo[tokenId].ownerAmount, l._tokenFRInfo[tokenId].numGenerations);
+        uint256[] memory FR = _calculateFR(profit, l._tokenFRInfo[tokenId].percentOfProfit, l._tokenFRInfo[tokenId].successiveRatio, l._tokenFRInfo[tokenId].ownerAmount - 1, l._tokenFRInfo[tokenId].numGenerations - 1); // Deduct one from numGenerations and ownerAmount because otherwise it'll create the distribution with an extra person in mind
 
         for (uint owner = 0; owner < FR.length; owner++) {
             l._allottedFR[l._addressesInFR[tokenId][owner]] += FR[owner];
         }
 
-        uint256 allocatedFR = 0;
-
-        for (uint reward = 0; reward < FR.length; reward++) {
-            allocatedFR += FR[reward];
-        }
-
-        (bool sent, ) = payable(l._tokenListInfo[tokenId].lister).call{value: soldPrice - allocatedFR}("");
-        require(sent, "Failed to send ETH after FR distribution to lister");
+        allocatedFR = profit.mul(l._tokenFRInfo[tokenId].percentOfProfit);
 
         emit FRDistributed(tokenId, soldPrice, allocatedFR);
     }
