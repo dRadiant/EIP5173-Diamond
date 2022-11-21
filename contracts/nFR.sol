@@ -109,6 +109,8 @@ abstract contract nFR is InFR, SolidStateERC721 {
             require(l._addressesInFR[tokenId][i] != _msgSender(), "Already in the FR sliding window");
         }
 
+        uint256 salePrice = l._tokenListInfo[tokenId].salePrice;
+
         _transferFrom(l._tokenListInfo[tokenId].lister, _msgSender(), tokenId, l._tokenListInfo[tokenId].salePrice);
 
         emit Bought(tokenId, salePrice);
