@@ -1,10 +1,5 @@
 {
-  "name": "@drad/eip-5173-diamond",
-  "version": "0.0.1",
-  "author": "dRadiant",
-  "license": "Unlicense",
-  "description": "EIP-5173 implemented alongside the EIP-2535 Diamond standard",
-  "repository": "github:dradiant/eip5173-diamond",
+  "name": "eip-5173-diamond",
   "devDependencies": {
     "@ethersproject/abi": "^5.4.7",
     "@ethersproject/providers": "^5.4.7",
@@ -33,8 +28,5 @@
     "@openzeppelin/contracts": "^4.6.0",
     "@prb/math": "^2.5.0",
     "dotenv": "^16.0.3"
-  },
-  "publishConfig": {
-    "access": "public"
   }
 }
