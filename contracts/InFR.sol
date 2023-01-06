@@ -31,10 +31,10 @@ interface InFR is IERC165 {
 
     function releaseFR(address payable account) external;
 
-    function retrieveFRInfo(uint256 tokenId) external returns(uint8, uint256, uint256, uint256, uint256, address[] memory);
+    function getFRInfo(uint256 tokenId) external returns(uint8, uint256, uint256, uint256, uint256, address[] memory);
 
-    function retrieveAllottedFR(address account) external returns(uint256);
+    function getAllottedFR(address account) external returns(uint256);
 
-    function retrieveListInfo(uint256 tokenId) external returns(uint256, address, bool);
+    function getListInfo(uint256 tokenId) external returns(uint256, address, bool);
     
 }

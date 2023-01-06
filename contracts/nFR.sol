@@ -12,7 +12,7 @@ abstract contract nFR is InFR, SolidStateERC721 {
     using PRBMathUD60x18 for uint256;
     using PRBMathSD59x18 for int256;
 
-    function retrieveFRInfo(uint256 tokenId)
+    function getFRInfo(uint256 tokenId)
         external
         view
         virtual
@@ -30,7 +30,7 @@ abstract contract nFR is InFR, SolidStateERC721 {
         return (l._tokenFRInfo[tokenId].numGenerations, l._tokenFRInfo[tokenId].percentOfProfit, l._tokenFRInfo[tokenId].successiveRatio, l._tokenFRInfo[tokenId].lastSoldPrice, l._tokenFRInfo[tokenId].ownerAmount, l._addressesInFR[tokenId]);
     }
 
-    function retrieveListInfo(uint256 tokenId)
+    function getListInfo(uint256 tokenId)
         external
         view
         virtual
@@ -45,7 +45,7 @@ abstract contract nFR is InFR, SolidStateERC721 {
         return (l._tokenListInfo[tokenId].salePrice, l._tokenListInfo[tokenId].lister, l._tokenListInfo[tokenId].isListed);
     }
 
-    function retrieveAllottedFR(address account) external view virtual override returns (uint256) {
+    function getAllottedFR(address account) external view virtual override returns (uint256) {
         nFRStorage.Layout storage l = nFRStorage.layout();
         return l._allottedFR[account];
     }
