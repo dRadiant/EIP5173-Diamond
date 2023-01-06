@@ -25,7 +25,7 @@ library nFRStorage {
         
         mapping(uint256 => FRInfo) _tokenFRInfo;
 
-        mapping(uint256 => address[]) _addressesInFR;
+        mapping(uint256 => address[]) _addressesInFR; // In the future, we should add _addressInFR to the FRInfo struct as per the EIP, instead of seperating it, but right now it would break the current untrading contract deployments
 
         mapping(address => uint256) _allottedFR;
 
