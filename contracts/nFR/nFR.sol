@@ -27,7 +27,7 @@ abstract contract nFR is InFR, SolidStateERC721 {
         )
     {
         nFRStorage.Layout storage l = nFRStorage.layout();
-        return (l._tokenFRInfo[tokenId].numGenerations, l._tokenFRInfo[tokenId].percentOfProfit, l._tokenFRInfo[tokenId].successiveRatio, l._tokenFRInfo[tokenId].lastSoldPrice, l._tokenFRInfo[tokenId].ownerAmount, l._addressesInFR[tokenId]);
+        return (l._tokenFRInfo[tokenId].numGenerations, l._tokenFRInfo[tokenId].percentOfProfit, l._tokenFRInfo[tokenId].successiveRatio, l._tokenFRInfo[tokenId].lastSoldPrice, l._tokenFRInfo[tokenId].ownerAmount, l._tokenFRInfo[tokenId].addressesInFR);
     }
 
     function getListInfo(uint256 tokenId)
@@ -105,8 +105,8 @@ abstract contract nFR is InFR, SolidStateERC721 {
         require(l._tokenListInfo[tokenId].isListed == true, "Token is not listed");
         require(l._tokenListInfo[tokenId].salePrice == msg.value, "salePrice and msg.value mismatch");
 
-        for (uint i = 0; i < l._addressesInFR[tokenId].length; i++) {
-            require(l._addressesInFR[tokenId][i] != _msgSender(), "Already in the FR sliding window");
+        for (uint i = 0; i < l._tokenFRInfo[tokenId].addressesInFR.length; i++) {
+            require(l._tokenFRInfo[tokenId].addressesInFR[i] != _msgSender(), "Already in the FR sliding window");
         }
 
         uint256 salePrice = l._tokenListInfo[tokenId].salePrice;
@@ -125,8 +125,8 @@ abstract contract nFR is InFR, SolidStateERC721 {
         super._transfer(from, to, tokenId);
         nFRStorage.Layout storage l = nFRStorage.layout();
 
-        for (uint i = 0; i < l._addressesInFR[tokenId].length; i++) {
-            require(l._addressesInFR[tokenId][i] != to, "Already in the FR sliding window");
+        for (uint i = 0; i < l._tokenFRInfo[tokenId].addressesInFR.length; i++) {
+            require(l._tokenFRInfo[tokenId].addressesInFR[i] != to, "Already in the FR sliding window");
         }
 
         if (l._tokenListInfo[tokenId].isListed == true) {
@@ -145,9 +145,9 @@ abstract contract nFR is InFR, SolidStateERC721 {
 
         super._mint(to, tokenId);
 
-        l._tokenFRInfo[tokenId] = nFRStorage.FRInfo(l._defaultFRInfo.numGenerations, l._defaultFRInfo.percentOfProfit, l._defaultFRInfo.successiveRatio, 0, 1, true);
+        l._tokenFRInfo[tokenId] = nFRStorage.FRInfo(l._defaultFRInfo.numGenerations, l._defaultFRInfo.percentOfProfit, l._defaultFRInfo.successiveRatio, 0, 1, new address[](0), true);
 
-        l._addressesInFR[tokenId].push(to);
+        l._tokenFRInfo[tokenId].addressesInFR.push(to);
     }
 
     function _burn(uint256 tokenId) internal virtual override {
@@ -155,7 +155,6 @@ abstract contract nFR is InFR, SolidStateERC721 {
         nFRStorage.Layout storage l = nFRStorage.layout();
 
         delete l._tokenFRInfo[tokenId];
-        delete l._addressesInFR[tokenId];
         delete l._tokenListInfo[tokenId];
     }
 
@@ -173,15 +172,15 @@ abstract contract nFR is InFR, SolidStateERC721 {
 
         nFRStorage.Layout storage l = nFRStorage.layout();
 
-        l._tokenFRInfo[tokenId] = nFRStorage.FRInfo(numGenerations, percentOfProfit, successiveRatio, 0, 1, true);
+        l._tokenFRInfo[tokenId] = nFRStorage.FRInfo(numGenerations, percentOfProfit, successiveRatio, 0, 1, new address[](0), true);
 
-        l._addressesInFR[tokenId].push(to);
+        l._tokenFRInfo[tokenId].addressesInFR.push(to);
     }
 
     function _distributeFR(uint256 tokenId, uint256 soldPrice) internal virtual returns(uint256 allocatedFR) {
         nFRStorage.Layout storage l = nFRStorage.layout();
 
-        address[] memory eligibleAddresses = l._addressesInFR[tokenId];
+        address[] memory eligibleAddresses = l._tokenFRInfo[tokenId].addressesInFR;
         assembly { mstore(eligibleAddresses, sub(mload(eligibleAddresses), 1)) } // This is functionally equivalent to .pop() except for a memory array. Remove last person in FR array as the last person doesn't pay themselves. This won't underflow because someone is always in the FR array. Early on that'll be the minter who is added at mint time.
 
         if (eligibleAddresses.length == 0) 
@@ -191,7 +190,7 @@ abstract contract nFR is InFR, SolidStateERC721 {
         uint256[] memory FR = _calculateFR(profit, l._tokenFRInfo[tokenId].percentOfProfit, l._tokenFRInfo[tokenId].successiveRatio, l._tokenFRInfo[tokenId].ownerAmount - 1, l._tokenFRInfo[tokenId].numGenerations - 1); // Deduct one from numGenerations and ownerAmount because otherwise it'll create the distribution with an extra person in mind
 
         for (uint owner = 0; owner < FR.length; owner++) {
-            l._allottedFR[l._addressesInFR[tokenId][owner]] += FR[owner];
+            l._allottedFR[l._tokenFRInfo[tokenId].addressesInFR[owner]] += FR[owner];
         }
 
         allocatedFR = profit.mul(l._tokenFRInfo[tokenId].percentOfProfit);
@@ -201,16 +200,16 @@ abstract contract nFR is InFR, SolidStateERC721 {
 
     function _shiftGenerations(address to, uint256 tokenId) internal virtual {
         nFRStorage.Layout storage l = nFRStorage.layout();
-        if (l._addressesInFR[tokenId].length < l._tokenFRInfo[tokenId].numGenerations) { // We just want to push to the array
-            l._addressesInFR[tokenId].push(to);
+        if (l._tokenFRInfo[tokenId].addressesInFR.length < l._tokenFRInfo[tokenId].numGenerations) { // We just want to push to the array
+            l._tokenFRInfo[tokenId].addressesInFR.push(to);
         } else { // We want to remove the first element in the array and then push to the end of the array
-            for (uint i = 0; i < l._addressesInFR[tokenId].length-1; i++) {
-                l._addressesInFR[tokenId][i] = l._addressesInFR[tokenId][i+1];
+            for (uint i = 0; i < l._tokenFRInfo[tokenId].addressesInFR.length-1; i++) {
+                l._tokenFRInfo[tokenId].addressesInFR[i] = l._tokenFRInfo[tokenId].addressesInFR[i+1];
             }
 
-            l._addressesInFR[tokenId].pop();
+            l._tokenFRInfo[tokenId].addressesInFR.pop();
 
-            l._addressesInFR[tokenId].push(to);
+            l._tokenFRInfo[tokenId].addressesInFR.push(to);
         }
     }
 

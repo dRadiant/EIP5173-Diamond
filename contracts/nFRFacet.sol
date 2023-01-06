@@ -3,10 +3,11 @@
 pragma solidity ^0.8.8;
 
 import {SolidStateERC721} from "@solidstate/contracts/token/ERC721/SolidStateERC721.sol";
-import {CounterStorage} from "./CounterStorage.sol";
 import {ERC721MetadataStorage} from "@solidstate/contracts/token/ERC721/metadata/ERC721MetadataStorage.sol";
 
-import "./nFR.sol";
+import {CounterStorage} from "./utils/CounterStorage.sol";
+
+import "./nFR/nFR.sol";
 
 contract nFRFacet is nFR {
     using CounterStorage for CounterStorage.Layout;

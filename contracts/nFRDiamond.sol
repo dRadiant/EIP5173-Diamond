@@ -7,7 +7,7 @@ import {ERC165Storage} from "@solidstate/contracts/introspection/ERC165Storage.s
 import {ERC721MetadataStorage} from "@solidstate/contracts/token/ERC721/metadata/ERC721MetadataStorage.sol";
 import {IERC721} from "@solidstate/contracts/token/ERC721/IERC721.sol";
 
-import "./InFR.sol";
+import "./nFR/InFR.sol";
 
 contract nFRDiamond is SolidStateDiamond {
     using ERC165Storage for ERC165Storage.Layout;

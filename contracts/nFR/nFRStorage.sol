@@ -11,6 +11,7 @@ library nFRStorage {
         uint256 successiveRatio; // The common ratio of successive in the geometric sequence, used for distribution calculation
         uint256 lastSoldPrice; // Last sale price in ETH mantissa
         uint256 ownerAmount; // Amount of owners the Token ID has seen
+        address[] addressesInFR; // The addresses currently in the FR cycle
         bool isValid; // Updated by contract and signifies if an FR Info for a given Token ID is valid
     }
 
@@ -25,11 +26,9 @@ library nFRStorage {
         
         mapping(uint256 => FRInfo) _tokenFRInfo;
 
-        mapping(uint256 => address[]) _addressesInFR; // In the future, we should add _addressInFR to the FRInfo struct as per the EIP, instead of seperating it, but right now it would break the current untrading contract deployments
+        mapping(uint256 => ListInfo) _tokenListInfo;
 
         mapping(address => uint256) _allottedFR;
-
-        mapping(uint256 => ListInfo) _tokenListInfo;
     }
 
     function layout() internal pure returns (Layout storage l) {
