@@ -3,10 +3,10 @@
 pragma solidity ^0.8.8;
 
 library nFRStorage {
-    bytes32 internal constant STORAGE_SLOT = keccak256("nFR.contract.storage");
+    bytes32 internal constant STORAGE_SLOT = keccak256("5173.diamond.NFT.nFR.contract.storage");
 
     struct FRInfo {
-        uint8 numGenerations; //  Number of generations corresponding to that Token ID
+        uint8 numGenerations; // Number of generations corresponding to that Token ID
         uint256 percentOfProfit; // Percent of profit allocated for FR, scaled by 1e18
         uint256 successiveRatio; // The common ratio of successive in the geometric sequence, used for distribution calculation
         uint256 lastSoldPrice; // Last sale price in ETH mantissa
