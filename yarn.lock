@@ -778,10 +778,10 @@
   dependencies:
     antlr4ts "^0.5.0-alpha.4"
 
-"@solidstate/contracts@^0.0.41":
-  version "0.0.41"
-  resolved "https://registry.yarnpkg.com/@solidstate/contracts/-/contracts-0.0.41.tgz#2414502e2518da99eb27b9f9d17d6cc9bb1f2ead"
-  integrity sha512-M7Lh7IigkBJqNMriFEi5z0eGgNG9UpBjYSfxn0fmP/+zzyNkVwOnOkNRPB5Wx/owLiFv0B7Hkto5hR9F8FizbA==
+"@solidstate/contracts@^0.0.52":
+  version "0.0.52"
+  resolved "https://registry.yarnpkg.com/@solidstate/contracts/-/contracts-0.0.52.tgz#cfe7e2ef237421f6e150927d7338c1ef02daa7b8"
+  integrity sha512-xSBn5oLnfYtgNYrsRq/COlWHt0NxK26PFQ3FvI2DDMAFpZKFsffGLzUl8umezj2gVKpN7EZ+EVLdPKjqx6eUOw==
 
 "@tsconfig/node10@^1.0.7":
   version "1.0.9"
